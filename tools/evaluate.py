@@ -55,19 +55,16 @@ def pct(a, b):
     return f"{a}/{b} ({100 * a / b:.1f}%)" if b else f"{a}/0"
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--lyrdb", required=True)
-    ap.add_argument("--truth", required=True)
-    ap.add_argument("--run", required=True, help="JSON written by run.py")
-    ap.add_argument("--rules", default=os.path.join(os.path.dirname(__file__), "..", "data/sky130_periphery_rules.csv"))
-    ap.add_argument("--out", default=None)
-    args = ap.parse_args()
+RULES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data/sky130_periphery_rules.csv")
 
-    rep = lyrdb.parse(args.lyrdb)
-    sites = json.load(open(args.truth))["sites"]
-    run = json.load(open(args.run))
-    index = rules.RuleIndex(rules.load(args.rules))
+
+def score(lyrdb_path, truth_path, run_path, rules_path=RULES):
+    """Returns (metrics dict, markdown text)."""
+    rep = lyrdb.parse(lyrdb_path)
+    truth = json.load(open(truth_path))
+    sites = truth["sites"]
+    run = json.load(open(run_path))
+    index = rules.RuleIndex(rules.load(rules_path))
 
     # 1. detection: match every marker to the site whose box contains it (same cell)
     hits_by_site = defaultdict(list)
@@ -114,8 +111,8 @@ def main():
     lines = [
         "# DRC Copilot — evaluation",
         "",
-        f"- Benchmark: `{os.path.basename(args.truth)}` (seed {json.load(open(args.truth)).get('seed')}), "
-        f"run: `{os.path.basename(args.run)}` ({run.get('seconds')} s)",
+        f"- Benchmark: `{os.path.basename(truth_path)}` (seed {truth.get('seed')}), "
+        f"run: `{os.path.basename(run_path)}` ({run.get('seconds')} s)",
         "",
         "## 1. Detection (official SKY130 KLayout deck)",
         f"- Violating sites flagged: **{pct(detected, len(violating))}**",
@@ -140,6 +137,26 @@ def main():
         f"- Self-reported grounded in the retrieved text: {pct(grounded, len(parsed))}",
     ]
     text = "\n".join(lines) + "\n"
+    metrics = {
+        "markers": len(rep.violations), "groups": len(groups), "seconds": run.get("seconds"),
+        "sites": len(violating), "detected": detected, "controls": len(controls), "false_pos": false_pos,
+        "retrieval_ok": ret_ok, "retrieval_naive_ok": ret_naive_ok,
+        "asked": len(asked), "parsed": len(parsed), "with_limit": len(with_limit),
+        "limit_ok": lim_ok, "worst_ok": worst_ok, "grounded": grounded,
+        "expected_rule": {a: b for a, b, c, d, e in ret_rows},
+    }
+    return metrics, text
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--lyrdb", required=True)
+    ap.add_argument("--truth", required=True)
+    ap.add_argument("--run", required=True, help="JSON written by run.py")
+    ap.add_argument("--rules", default=RULES)
+    ap.add_argument("--out", default=None)
+    args = ap.parse_args()
+    _, text = score(args.lyrdb, args.truth, args.run, args.rules)
     print(text)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

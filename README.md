@@ -4,6 +4,8 @@ AI-assisted triage of DRC (design-rule check) reports on the open-source SkyWate
 
 > **Status: working prototype (Oct 2026).** All numbers below come from measured runs (`tools/evaluate.py`).
 
+![DRC Copilot report](docs/demo.png)
+
 ## What it does
 
 A full-chip DRC run can report thousands of violations. DRC Copilot turns the raw report into a one-page triage:
@@ -28,6 +30,18 @@ tools/run_drc.sh work/bench.gds work/bench.lyrdb            # open-source SKY130
 /usr/bin/python3 run.py work/bench.lyrdb --no-llm                   # rule-only fallback
 /usr/bin/python3 tools/evaluate.py --lyrdb work/bench.lyrdb --truth work/bench_truth.json --run out/bench_glm.json
 ```
+
+## Demo
+
+```bash
+/usr/bin/python3 app.py          # then open http://127.0.0.1:8765
+```
+
+The page shows the triage of the latest run: headline numbers, the test chip, one row per rule group, and for the
+selected group a KLayout render of its **worst** marker (red, with a ruler showing the measured value), the measured vs
+required value, the retrieved SKY130 rule text and the GLM explanation. **Run live** rebuilds everything from scratch —
+new benchmark (seed / size of your choice) → official DRC deck → triage → snapshots → scoring — in about 5 s with the
+model off and ~1.5 min with GLM on. A static copy of the page can be built with `python3 -m drc_copilot.site`.
 
 ## Data and licences
 

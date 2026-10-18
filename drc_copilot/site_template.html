@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRC Copilot</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5d6673; --line: #e3e6ea;
+  --accent: #2357d6; --accent-soft: #e8eefc; --ok: #1f8a4c; --ok-soft: #e4f4ea;
+  --warn: #b26a00; --warn-soft: #fbf0dd; --bad: #c62828; --bad-soft: #fbe5e5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --panel: #171b21; --ink: #e6e9ed; --muted: #98a2ae; --line: #262c34;
+    --accent: #7aa2ff; --accent-soft: #1b2640; --ok: #4cc27f; --ok-soft: #13291d;
+    --warn: #f0b04a; --warn-soft: #2e2412; --bad: #ff6b6b; --bad-soft: #321a1a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
+header h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--muted); }
+.meta { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 22px 0 16px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.kpi .v { font-size: 26px; font-weight: 650; }
+.kpi .l { font-size: 13px; color: var(--muted); }
+.kpi .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pipe { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 18px; font-size: 13px; }
+.pipe span.step { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; }
+.pipe span.arrow { color: var(--muted); }
+.pipe span.ai { border-color: var(--accent); color: var(--accent); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.overview { padding: 12px; margin-bottom: 18px; }
+.overview img { width: 100%; border-radius: 8px; display: block; background: #000; }
+.overview .cap { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.main { display: grid; grid-template-columns: minmax(330px, 420px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: 1fr; } }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; color: var(--muted); font-weight: 600; }
+tr.g { cursor: pointer; }
+tr.g:hover { background: var(--accent-soft); }
+tr.g.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; position: relative; margin-top: 4px; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--bad); }
+.badge { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; border: 1px solid transparent; }
+.b-exact { background: var(--ok-soft); color: var(--ok); }
+.b-normalized { background: var(--accent-soft); color: var(--accent); }
+.b-corrected { background: var(--warn-soft); color: var(--warn); }
+.b-similar, .b-mismatch, .b-none { background: var(--bad-soft); color: var(--bad); }
+.detail { padding: 18px; }
+.detail h2 { margin: 0 0 4px; font-size: 20px; }
+.detail .sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.detail img { width: 100%; max-width: 620px; border-radius: 8px; background: #000; display: block; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 14px 0; }
+.fact { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.fact .l { font-size: 12px; color: var(--muted); }
+.fact .v { font-weight: 600; }
+.sec { margin-top: 14px; }
+.sec h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+blockquote { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; font-size: 13.5px; }
+ul { margin: 4px 0 0; padding-left: 20px; }
+.note { font-size: 12.5px; color: var(--muted); }
+.fallback { background: var(--warn-soft); color: var(--warn); padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+#run { padding: 14px 16px; margin-bottom: 18px; display: none; }
+#run label { font-size: 13px; color: var(--muted); margin-right: 12px; }
+#run input[type=number] { width: 90px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+#run button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 16px; font-weight: 600; cursor: pointer; }
+#run button:disabled { opacity: .5; cursor: default; }
+#steps { margin: 10px 0 0; padding: 0; list-style: none; font-size: 13px; }
+#steps li { padding: 2px 0; }
+#steps .st-done::before { content: "✓ "; color: var(--ok); }
+#steps .st-run::before { content: "● "; color: var(--accent); }
+#steps .st-wait::before { content: "○ "; color: var(--muted); }
+#steps .st-fail::before { content: "✗ "; color: var(--bad); }
+footer { margin-top: 28px; font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>DRC Copilot</h1>
+    <p>AI-assisted triage of DRC reports on the open-source SkyWater SKY130 PDK — KLayout · RAG · GLM</p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="card" id="run">
+    <strong>Run live</strong>
+    <span class="note">— build a fresh benchmark, run the official DRC deck, triage it</span><br><br>
+    <label>Seed <input type="number" id="seed" value="20261011"></label>
+    <label>Max violations per rule <input type="number" id="maxper" value="35" min="1" max="80"></label>
+    <label><input type="checkbox" id="usellm" checked> Use GLM</label>
+    <button id="go">Run</button>
+    <ul id="steps"></ul>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="pipe">
+    <span class="step">Official KLayout DRC deck</span><span class="arrow">→</span>
+    <span class="step">Group &amp; measure</span><span class="arrow">→</span>
+    <span class="step">Retrieve rule text (RAG)</span><span class="arrow">→</span>
+    <span class="step ai">GLM explanation</span><span class="arrow">→</span>
+    <span class="step">Report</span>
+    <span class="note">&nbsp;· if the model fails, the report falls back to grouping + rule text</span>
+  </div>
+
+  <div class="card overview">
+    <img src="img/overview.png" alt="Test chip overview">
+    <div class="cap">Test chip: a row of SKY130 standard cells (bottom left) and four blocks of injected violations and at-limit legal controls.</div>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <table>
+        <thead><tr><th>Rule</th><th>Count</th><th>Worst / limit</th><th>Rule text</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="card detail" id="detail"></div>
+  </div>
+
+  <footer>
+    Detection is done by the open-source SKY130 KLayout deck (<code>sky130A_mr.drc</code>); DRC Copilot triages its output.
+    Numbers on this page are computed, not generated by the model.
+    Code: <a href="https://github.com/jiawei-wang-ic/drc-copilot">github.com/jiawei-wang-ic/drc-copilot</a>
+  </footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const unit = (g) => g.kind === "area" ? "µm²" : "µm";
+const num = (x) => x == null ? "—" : String(Number(Number(x).toPrecision(3)));
+const HOW = {exact: "exact id", normalized: "id normalized", corrected: "corrected by type check",
+             mismatch: "type mismatch", similar: "similarity only", none: "not found"};
+
+function render() {
+  const m = DATA.metrics;
+  $("meta").textContent = (DATA.seed != null ? `benchmark seed ${DATA.seed} · ` : "") + `${DATA.violations} markers · model ${DATA.model}` +
+    (DATA.seconds != null ? ` · triage ${DATA.seconds}s` : "");
+  const k = [];
+  k.push({v: `${DATA.violations} → ${DATA.groups.length}`, l: "markers → rule groups", s: "deterministic grouping"});
+  if (m) {
+    k.push({v: `${m.retrieval_ok}/${m.groups}`, l: "rule text retrieved correctly", s: `naive id-only lookup: ${m.retrieval_naive_ok}/${m.groups}`});
+    k.push({v: `${m.limit_ok}/${m.with_limit}`, l: "explanations quote the right limit", s: `and the worst measured value: ${m.worst_ok}/${m.with_limit}`});
+    k.push({v: `${m.false_pos}/${m.controls}`, l: "legal controls flagged", s: `${m.detected}/${m.sites} injected sites flagged by the deck`});
+  }
+  $("kpis").innerHTML = k.map(x => `<div class="kpi"><div class="v">${esc(x.v)}</div><div class="l">${esc(x.l)}</div><div class="s">${esc(x.s)}</div></div>`).join("");
+
+  $("rows").innerHTML = DATA.groups.map((g, i) => {
+    const pct = g.limit && g.worst != null ? Math.max(4, Math.min(100, 100 * g.worst / g.limit)) : null;
+    const wl = pct == null ? `<span class="note">—</span>` :
+      `<span class="mono">${num(g.worst)} / ${num(g.limit)} ${unit(g)}</span><div class="bar"><i style="width:${pct}%"></i></div>`;
+    return `<tr class="g" data-i="${i}"><td><code>${esc(g.rule)}</code></td><td>${g.count}</td><td>${wl}</td>` +
+           `<td><span class="badge b-${g.retrieval}">${esc(g.retrieval)}</span></td></tr>`;
+  }).join("");
+  document.querySelectorAll("tr.g").forEach(tr => tr.onclick = () => show(+tr.dataset.i));
+  const first = DATA.groups.findIndex(g => g.limit != null && g.kind === "distance");
+  show(first >= 0 ? first : 0);
+}
+
+function show(i) {
+  document.querySelectorAll("tr.g").forEach(tr => tr.classList.toggle("sel", +tr.dataset.i === i));
+  const g = DATA.groups[i]; if (!g) return;
+  const ex = g.explanation;
+  const cells = Object.entries(g.cells || {}).map(([c, n]) => `${c} (${n})`).join(", ");
+  let expl = "";
+  if (!ex) expl = `<div class="fallback">Model not used for this run — grouping and rule text only.</div>`;
+  else if (ex.error) expl = `<div class="fallback">Model unavailable (${esc(ex.error)}) — showing grouping and rule text only.</div>`;
+  else expl = `<div class="sec"><h3>What</h3><div>${esc(ex.what)}</div></div>
+    <div class="sec"><h3>Likely causes</h3><ul>${(ex.likely_causes||[]).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
+    <div class="sec"><h3>Suggested fixes</h3><ul>${(ex.fix||[]).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  const check = g.retrieval_ok == null ? "" :
+    `<div class="fact"><div class="l">Ground truth rule</div><div class="v">${g.retrieval_ok ? "✓" : "✗"} <code>${esc(g.expected)}</code></div></div>`;
+  $("detail").innerHTML = `
+    <h2><code>${esc(g.rule)}</code></h2>
+    <div class="sub">${esc(g.description)}</div>
+    ${g.snapshot ? `<img src="${esc(g.snapshot)}" alt="layout around one marker">
+      <div class="note" style="margin-top:4px">The worst marker of this rule in red; ruler = measured value. Rendered from the GDS with KLayout.</div>` : ""}
+    <div class="facts">
+      <div class="fact"><div class="l">Violations</div><div class="v">${g.count}</div></div>
+      <div class="fact"><div class="l">Worst measured</div><div class="v">${g.worst != null ? `${num(g.worst)} ${unit(g)}` : "—"}</div></div>
+      <div class="fact"><div class="l">Required</div><div class="v">${g.limit != null ? `≥ ${num(g.limit)} ${unit(g)}` : "—"}</div></div>
+      <div class="fact"><div class="l">Rule text</div><div class="v"><span class="badge b-${g.retrieval}">${esc(HOW[g.retrieval] || g.retrieval)}</span></div></div>
+      ${check}
+    </div>
+    <div class="sec"><h3>SKY130 design-rule manual</h3>${(g.rule_text||[]).map(t => `<blockquote>${esc(t)}</blockquote>`).join("<div style='height:6px'></div>") || "<div class='note'>No matching rule text.</div>"}</div>
+    ${expl}
+    <div class="sec note">Cells: ${esc(cells)}</div>`;
+}
+
+// live-run controls appear only when served by app.py
+async function initRun() {
+  let st;
+  try { st = await (await fetch("/api/status")).json(); } catch (e) { return; }
+  $("run").style.display = "block";
+  $("go").onclick = async () => {
+    $("go").disabled = true;
+    await fetch("/api/run", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({seed: +$("seed").value, max_per_type: +$("maxper").value, use_llm: $("usellm").checked})});
+    poll();
+  };
+  if (st.running) { $("go").disabled = true; poll(); }
+}
+async function poll() {
+  const st = await (await fetch("/api/status")).json();
+  $("steps").innerHTML = st.steps.map(s => `<li class="st-${s.state}">${esc(s.name)}${s.note ? ` <span class="note">— ${esc(s.note)}</span>` : ""}</li>`).join("");
+  if (st.running) setTimeout(poll, 800);
+  else { $("go").disabled = false; if (st.finished_ok) location.reload(); }
+}
+render(); initRun();
+</script>
+</body>
+</html>
