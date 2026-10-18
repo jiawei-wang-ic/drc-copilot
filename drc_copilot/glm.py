@@ -36,7 +36,20 @@ class GLMUnavailable(RuntimeError):
     pass
 
 
-def chat(messages, model=None, temperature=0.2, timeout=60):
+def chat(messages, model=None, temperature=0.2, timeout=120, retries=1):
+    """One retry on any failure (timeouts are the usual cause); raises GLMUnavailable if all attempts fail."""
+    last = None
+    for _ in range(retries + 1):
+        try:
+            return _chat_once(messages, model, temperature, timeout)
+        except GLMUnavailable as e:
+            last = e
+            if "not set" in str(e):
+                break
+    raise last
+
+
+def _chat_once(messages, model, temperature, timeout):
     _load_dotenv()
     key = os.environ.get("ZHIPUAI_API_KEY", "").strip()
     if not key:

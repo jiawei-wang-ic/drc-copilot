@@ -31,6 +31,39 @@ tools/run_drc.sh work/bench.gds work/bench.lyrdb            # open-source SKY130
 /usr/bin/python3 tools/evaluate.py --lyrdb work/bench.lyrdb --truth work/bench_truth.json --run out/bench_glm.json
 ```
 
+## Second input: RTL simulation regression logs
+
+The same triage idea applied to verification: a nightly regression produces many failing runs; most of them are the
+same bug seen through different random seeds. `run_sim.py` reads Icarus Verilog logs from self-checking testbenches and
+
+1. **classifies** each run (pass / fail / compile error / timeout);
+2. **groups** failures by build and **first symptom** (the first signal that mismatched, plus context such as `op=1`)
+   — grouping by the full set of mismatching signals fragments one bug into several groups because it varies with the seed;
+3. **retrieves candidate RTL lines**: drivers of the failing signal, their `if` / `case` guards, one level of fan-in,
+   FSM next-state logic, or the lines around a compile error (compilers often report the line *after* the mistake);
+4. asks GLM for the **suspect line, hypothesis, fix and next debug step**, with a no-model baseline alongside.
+
+```bash
+brew install icarus-verilog
+/usr/bin/python3 tools/mutate_rtl.py                 # 4 small designs, 15 seeded bugs + clean builds, 6 seeds each
+/usr/bin/python3 run_sim.py work/sim/logs            # add --no-llm for the deterministic part only
+/usr/bin/python3 tools/evaluate_sim.py
+```
+
+**Results** (`examples/sim_eval.md`, glm-5.3-flash):
+
+| What | Result |
+|---|---|
+| Benchmark | counter, FIFO, 1011 sequence detector, ALU · 15 seeded bugs (off-by-one, wrong reset, missing update, wrong FSM transition, wrong operator, dropped carry, 2 syntax errors) + clean builds · 114 runs |
+| Regression sanity | clean runs flagged 0/24 · bugs caught 15/15 |
+| Grouping | 90 failing runs → 16 groups by first symptom (21 by full signal set; builds split: 1 vs 4) |
+| Candidate lines contain the bug | 16/16, 1–9 lines per group (mean 5.4) |
+| Top-1 bug line | **GLM 15/16** (functional 13/14, compile errors 2/2) · no-model baseline 7/16 (compile errors 0/2) |
+
+The one GLM miss was two timeouts in a row; that group falls back to the baseline line.
+Limitations: one bug per build, four small designs written for this benchmark; real regressions mix several bugs per
+build and much larger RTL, where retrieving the right lines is the hard part.
+
 ## Demo
 
 ```bash
